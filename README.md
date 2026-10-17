@@ -4,11 +4,23 @@ macOS에서 Microsoft Office의 백그라운드 자동 업데이트를 끄고, �
 
 ## 실행
 
+### 한 줄로 다운로드하고 실행
+
+다른 Mac의 터미널에 아래 한 줄을 붙여 넣으면 최신 `main` 브랜치의 스크립트를 다운로드하고 `turnoff`를 실행합니다. Mac 관리자 암호가 필요합니다.
+
+```bash
+/bin/bash -c 'f=$(/usr/bin/mktemp -t TurnOff-Office-Update) || exit; trap "/bin/rm -f \"$f\"" EXIT; /usr/bin/curl -fsSL --proto "=https" --proto-redir "=https" https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o "$f" && /bin/bash "$f" turnoff'
+```
+
+다운로드가 성공한 경우에만 실행하며, 실행이 끝나면 임시 스크립트는 삭제합니다. 최초 설정 백업은 해당 Mac에 유지됩니다. 실행할 코드는 [스크립트 원본](./TurnOff-Office-Update.command)에서 확인할 수 있습니다.
+
+### 파일을 받아 직접 실행
+
 이 저장소를 다운로드한 뒤, 터미널에서 해당 폴더로 이동해 실행하세요.
 
 ```bash
 # 자동 업데이트 끄기 — 관리자 암호 필요
-bash TurnOff-Office-Update.command disable
+bash TurnOff-Office-Update.command turnoff
 
 # 상태 확인 — 읽기 전용
 bash TurnOff-Office-Update.command status
@@ -20,7 +32,7 @@ bash TurnOff-Office-Update.command dry-run
 bash TurnOff-Office-Update.command restore
 ```
 
-Finder에서 `TurnOff-Office-Update.command`를 더블 클릭하면 기본 동작인 `disable`을 실행합니다. 터미널에 관리자 암호를 입력할 때 글자가 표시되지 않는 것은 정상입니다.
+Finder에서 `TurnOff-Office-Update.command`를 더블 클릭하면 기본 동작인 `turnoff`를 실행합니다. 터미널에 관리자 암호를 입력할 때 글자가 표시되지 않는 것은 정상입니다.
 
 ## 적용 범위
 
@@ -42,7 +54,7 @@ Microsoft 문서상 `Manual`만 설정하면 MAU 자체의 업데이트 확인�
 
 ## 백업과 복원
 
-최초 `disable` 실행 시 기존 설정을 다음 위치에 백업합니다. 백업은 해당 Mac에만 저장되며 관리자만 읽을 수 있습니다.
+최초 `turnoff` 실행 시 기존 설정을 다음 위치에 백업합니다. 백업은 해당 Mac에만 저장되며 관리자만 읽을 수 있습니다.
 
 ```text
 /Library/Application Support/TurnOff-Office-Update/active

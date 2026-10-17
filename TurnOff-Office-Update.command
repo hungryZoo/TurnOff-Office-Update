@@ -1,9 +1,9 @@
 #!/bin/bash
-# macOS built-in tools only. Default action: disable Microsoft AutoUpdate.
-# Usage: bash TurnOff-Office-Update.command [disable|restore|status|dry-run]
+# macOS built-in tools only. Default action: turn off Microsoft AutoUpdate.
+# Usage: bash TurnOff-Office-Update.command [turnoff|restore|status|dry-run]
 set -euo pipefail
 
-ACTION="${1:-disable}"
+ACTION="${1:-turnoff}"
 PREF_DOMAIN='com.microsoft.autoupdate2'
 SYSTEM_PREF='/Library/Preferences/com.microsoft.autoupdate2.plist'
 SYSTEM_DOMAIN='/Library/Preferences/com.microsoft.autoupdate2'
@@ -18,10 +18,10 @@ say() { printf '%s\n' "$*"; }
 die() { say "오류: $*" >&2; exit 1; }
 
 case "$ACTION" in
-    disable|restore|status|dry-run) ;;
+    turnoff|restore|status|dry-run) ;;
     -h|--help|help)
-        say '사용법: bash TurnOff-Office-Update.command [disable|restore|status|dry-run]'
-        say 'disable: 자동 업데이트 끄기 (기본값, 최초 설정 백업)'
+        say '사용법: bash TurnOff-Office-Update.command [turnoff|restore|status|dry-run]'
+        say 'turnoff: 자동 업데이트 끄기 (기본값, 최초 설정 백업)'
         say 'restore: 이 스크립트 최초 실행 전의 설정으로 복원'
         say 'status: 현재 설정과 서비스 상태 확인 (읽기 전용)'
         say 'dry-run: 적용할 작업 표시 (변경 없음)'
@@ -208,7 +208,7 @@ restore_service() {
     fi
 }
 
-if [ "$ACTION" = disable ]; then
+if [ "$ACTION" = turnoff ]; then
     save_baseline
     user_command /usr/bin/defaults write "$PREF_DOMAIN" HowToCheck -string Manual
     user_command /usr/bin/defaults write "$PREF_DOMAIN" StartDaemonOnAppLaunch -bool false
