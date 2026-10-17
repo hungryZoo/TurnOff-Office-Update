@@ -6,9 +6,9 @@ TurnOff-Office-Update — macOS 사용 설명서
 
   curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnoff
 
-다운로드가 성공한 경우에만 실행합니다. 스크립트 파일은 현재 폴더에 남으며,
-나중에 status 또는 restore로 다시 실행할 수 있습니다.
-최초 설정 백업은 해당 Mac에 유지됩니다.
+자동 업데이트를 다시 켜려면 다음 한 줄을 실행하세요.
+
+  curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnon
 
 TurnOff-Office-Update.command 파일 하나만 해당 Mac으로 옮기면 됩니다.
 Finder에서 더블 클릭하면 자동 업데이트 차단을 적용합니다.
@@ -20,20 +20,21 @@ Finder에서 더블 클릭하면 자동 업데이트 차단을 적용합니다.
 
   bash [여기에 TurnOff-Office-Update.command 파일을 드래그]
 
-2. 끄기 / 상태 확인 / 최초 상태 복원
+2. 끄기 / 켜기 / 상태 확인 / 최초 상태 복원
 
 터미널에서 스크립트가 있는 폴더로 이동한 뒤 실행합니다.
 
   bash TurnOff-Office-Update.command turnoff
+  bash TurnOff-Office-Update.command turnon
   bash TurnOff-Office-Update.command status
   bash TurnOff-Office-Update.command restore
 
-적용할 작업을 미리 보기만 하려면:
+끄기 작업을 미리 보기만 하려면:
 
   bash TurnOff-Office-Update.command dry-run
 
 status와 dry-run은 설정을 변경하지 않으며 관리자 권한도 요구하지 않습니다.
-turnoff와 restore는 관리자 권한이 필요합니다.
+turnoff, turnon, restore는 관리자 권한이 필요합니다.
 로그인된 일반 Mac 사용자 계정에서 실행하세요. root 직접 실행과 원격 SSH 실행은 대상이 아닙니다.
 
 3. 실제로 하는 작업
@@ -43,6 +44,14 @@ turnoff와 restore는 관리자 권한이 필요합니다.
   HowToCheck = Manual
   StartDaemonOnAppLaunch = false
 
+turnon은 사용자와 시스템 공용 설정을 다음 값으로 바꿉니다.
+
+  HowToCheck = AutomaticDownload
+  StartDaemonOnAppLaunch = true
+
+turnon은 자동 확인·다운로드·설치를 켭니다.
+MAU 서비스 파일이 없으면 설정을 바꾸기 전에 중단합니다.
+
 그리고 macOS의 launchctl로 다음 서비스를 비활성화하고, 등록되어 있으면 실행 등록을 해제합니다.
 
   gui/<현재 사용자 UID>/com.microsoft.update.agent
@@ -50,6 +59,7 @@ turnoff와 restore는 관리자 권한이 필요합니다.
 
 launchctl disable은 재부팅 후에도 유지되는 차단 설정입니다.
 bootout은 현재 로그인 세션/시스템에 등록된 서비스를 내려 즉시 실행되지 않게 합니다.
+turnon은 두 서비스를 launchctl enable로 활성화하고, 필요하면 bootstrap으로 다시 등록합니다.
 
 HowToCheck=Manual은 Office의 자동 업데이트 확인을 수동으로 전환합니다.
 Microsoft 문서에 따르면 이 값만 설정하면 업데이트 도구 자체의 확인은 남을 수 있습니다.
@@ -63,12 +73,12 @@ VS Code, Edge, OneDrive의 별도 업데이트 설정은 이 스크립트의 대
 
 4. 백업과 복원 범위
 
-처음 turnoff를 실행할 때만 다음 위치에 기존 설정을 백업합니다.
+처음 turnoff 또는 turnon을 실행할 때만 다음 위치에 기존 설정을 백업합니다.
 
   /Library/Application Support/TurnOff-Office-Update/active
 
 백업은 해당 Mac에 보관되며 관리자만 읽을 수 있습니다.
-다시 turnoff를 실행해도 최초 백업을 덮어쓰지 않습니다.
+다시 turnoff 또는 turnon을 실행해도 최초 백업을 덮어쓰지 않습니다.
 restore는 두 설정 키와 두 서비스의 비활성화/실행 등록 상태만 최초 상태로 되돌립니다.
 그 외의 최신 환경설정은 백업으로 덮어쓰지 않습니다.
 원래 없던 설정 키는 삭제합니다.
@@ -79,6 +89,7 @@ launchctl에 명시적 상태가 없었던 경우, 복원 시 같은 효과의 e
 이전에 수동으로 차단한 Mac에서 이 스크립트를 처음 실행하면,
 이미 차단된 상태가 백업됩니다. 이 경우 restore로 자동 업데이트가 켜지지는 않습니다.
 스크립트 설치 이전에 수행한 수동 작업까지 추정해서 복원하지는 않습니다.
+자동 업데이트를 켜려면 turnon을 사용하세요. turnon 이후에도 최초 백업은 유지됩니다.
 
 여러 사용자 계정이 있는 Mac에서는 시스템 도우미 차단이 모든 사용자에게 영향을 줍니다.
 사용자 에이전트 차단은 실행한 계정에만 적용됩니다.
@@ -100,7 +111,7 @@ Office/MAU를 재설치한 뒤에는 status로 상태를 다시 확인하고 필
 Mac App Store에서 설치한 Office의 업데이트는 App Store가 관리하므로 별도입니다.
 이 스크립트는 App Store 설정을 변경하지 않습니다.
 자동 보안 업데이트도 차단되므로 필요한 업데이트는 직접 관리해야 합니다.
-MAU를 통해 수동 업데이트하려면 먼저 restore로 서비스를 복원하세요.
+MAU를 사용하려면 turnon으로 켜거나 restore로 이전 서비스 상태를 복원하세요.
 
 참고: Microsoft 공식 MAU 환경설정 문서
 https://learn.microsoft.com/en-us/microsoft-365-apps/mac/mau-preferences

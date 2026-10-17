@@ -1,6 +1,6 @@
 #!/bin/bash
 # macOS built-in tools only. Default action: turn off Microsoft AutoUpdate.
-# Usage: bash TurnOff-Office-Update.command [turnoff|restore|status|dry-run]
+# Usage: bash TurnOff-Office-Update.command [turnoff|turnon|restore|status|dry-run]
 set -euo pipefail
 
 ACTION="${1:-turnoff}"
@@ -18,13 +18,14 @@ say() { printf '%s\n' "$*"; }
 die() { say "오류: $*" >&2; exit 1; }
 
 case "$ACTION" in
-    turnoff|restore|status|dry-run) ;;
+    turnoff|turnon|restore|status|dry-run) ;;
     -h|--help|help)
-        say '사용법: bash TurnOff-Office-Update.command [turnoff|restore|status|dry-run]'
+        say '사용법: bash TurnOff-Office-Update.command [turnoff|turnon|restore|status|dry-run]'
         say 'turnoff: 자동 업데이트 끄기 (기본값, 최초 설정 백업)'
+        say 'turnon: 자동 다운로드 및 설치 켜기 (최초 설정 백업)'
         say 'restore: 이 스크립트 최초 실행 전의 설정으로 복원'
         say 'status: 현재 설정과 서비스 상태 확인 (읽기 전용)'
-        say 'dry-run: 적용할 작업 표시 (변경 없음)'
+        say 'dry-run: turnoff 작업 표시 (변경 없음)'
         exit 0 ;;
     *) die "알 수 없는 동작: $ACTION. --help를 참고하세요." ;;
 esac
@@ -173,6 +174,18 @@ unload_if_loaded() {
     if loaded "$1"; then /bin/launchctl bootout "$1"; fi
 }
 
+enable_service() {
+    local domain="$1" label="$2" plist="$3"
+    /bin/launchctl enable "$domain/$label"
+    if ! loaded "$domain/$label"; then
+        /bin/launchctl bootstrap "$domain" "$plist"
+    fi
+    if disabled "$domain" "$label" "$plist"; then
+        die "서비스 비활성화가 해제되지 않았습니다: $domain/$label"
+    fi
+    loaded "$domain/$label" || die "서비스가 등록되지 않았습니다: $domain/$label"
+}
+
 restore_preferences() {
     local scope="$1" domain="$2" current="$3" key type value option
     for key in HowToCheck StartDaemonOnAppLaunch; do
@@ -199,9 +212,13 @@ restore_service() {
         unload_if_loaded "$domain/$label"
     elif [ "$previous" = enabled ]; then
         /bin/launchctl enable "$domain/$label"
-        if [ "$(/bin/cat "$STATE/$kind-loaded")" = yes ] && ! loaded "$domain/$label"; then
-            [ -f "$plist" ] || die "서비스 파일을 찾을 수 없습니다: $plist"
-            /bin/launchctl bootstrap "$domain" "$plist"
+        if [ "$(/bin/cat "$STATE/$kind-loaded")" = yes ]; then
+            if ! loaded "$domain/$label"; then
+                [ -f "$plist" ] || die "서비스 파일을 찾을 수 없습니다: $plist"
+                /bin/launchctl bootstrap "$domain" "$plist"
+            fi
+        else
+            unload_if_loaded "$domain/$label"
         fi
     else
         die '백업된 서비스 상태가 올바르지 않습니다.'
@@ -224,9 +241,25 @@ if [ "$ACTION" = turnoff ]; then
     [ "$(/usr/bin/defaults read "$SYSTEM_DOMAIN" StartDaemonOnAppLaunch)" = 0 ]
     disabled "$GUI_DOMAIN" "$AGENT" "$AGENT_PLIST"
     disabled system "$HELPER" "$HELPER_PLIST"
-    ! loaded "$GUI_DOMAIN/$AGENT"
-    ! loaded "system/$HELPER"
+    if loaded "$GUI_DOMAIN/$AGENT" || loaded "system/$HELPER"; then
+        die '업데이트 서비스의 실행 등록이 해제되지 않았습니다.'
+    fi
     say 'Office 백그라운드 자동 업데이트 차단을 적용하고 확인했습니다.'
+elif [ "$ACTION" = turnon ]; then
+    [ -f "$AGENT_PLIST" ] || die "MAU 서비스 파일이 없습니다. Office 또는 Microsoft AutoUpdate 설치를 확인하세요: $AGENT_PLIST"
+    [ -f "$HELPER_PLIST" ] || die "MAU 서비스 파일이 없습니다. Office 또는 Microsoft AutoUpdate 설치를 확인하세요: $HELPER_PLIST"
+    save_baseline
+    user_command /usr/bin/defaults write "$PREF_DOMAIN" HowToCheck -string AutomaticDownload
+    user_command /usr/bin/defaults write "$PREF_DOMAIN" StartDaemonOnAppLaunch -bool true
+    /usr/bin/defaults write "$SYSTEM_DOMAIN" HowToCheck -string AutomaticDownload
+    /usr/bin/defaults write "$SYSTEM_DOMAIN" StartDaemonOnAppLaunch -bool true
+    enable_service system "$HELPER" "$HELPER_PLIST"
+    enable_service "$GUI_DOMAIN" "$AGENT" "$AGENT_PLIST"
+    [ "$(user_command /usr/bin/defaults read "$PREF_DOMAIN" HowToCheck)" = AutomaticDownload ]
+    [ "$(user_command /usr/bin/defaults read "$PREF_DOMAIN" StartDaemonOnAppLaunch)" = 1 ]
+    [ "$(/usr/bin/defaults read "$SYSTEM_DOMAIN" HowToCheck)" = AutomaticDownload ]
+    [ "$(/usr/bin/defaults read "$SYSTEM_DOMAIN" StartDaemonOnAppLaunch)" = 1 ]
+    say 'Office 자동 다운로드 및 설치를 켜고 서비스 등록을 확인했습니다.'
 else
     [ -f "$STATE/ready" ] || die '이 스크립트가 저장한 최초 설정 백업이 없습니다.'
     [ "$(/bin/cat "$STATE/uid")" = "$TARGET_UID" ] || die '최초 실행 사용자 계정에서 복원해 주세요.'
