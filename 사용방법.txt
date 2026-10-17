@@ -4,9 +4,10 @@ TurnOff-Office-Update — macOS 사용 설명서
 
 터미널에 다음 한 줄을 붙여 넣으면 최신 main 브랜치의 스크립트를 내려받아 실행합니다.
 
-  /bin/bash -c 'f=$(/usr/bin/mktemp -t TurnOff-Office-Update) || exit; trap "/bin/rm -f \"$f\"" EXIT; /usr/bin/curl -fsSL --proto "=https" --proto-redir "=https" https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o "$f" && /bin/bash "$f" turnoff'
+  curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnoff
 
-다운로드가 성공한 경우에만 실행하며, 종료 시 임시 스크립트를 삭제합니다.
+다운로드가 성공한 경우에만 실행합니다. 스크립트 파일은 현재 폴더에 남으며,
+나중에 status 또는 restore로 다시 실행할 수 있습니다.
 최초 설정 백업은 해당 Mac에 유지됩니다.
 
 TurnOff-Office-Update.command 파일 하나만 해당 Mac으로 옮기면 됩니다.

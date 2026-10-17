@@ -9,10 +9,10 @@ macOS에서 Microsoft Office의 백그라운드 자동 업데이트를 끄고, �
 다른 Mac의 터미널에 아래 한 줄을 붙여 넣으면 최신 `main` 브랜치의 스크립트를 다운로드하고 `turnoff`를 실행합니다. Mac 관리자 암호가 필요합니다.
 
 ```bash
-/bin/bash -c 'f=$(/usr/bin/mktemp -t TurnOff-Office-Update) || exit; trap "/bin/rm -f \"$f\"" EXIT; /usr/bin/curl -fsSL --proto "=https" --proto-redir "=https" https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o "$f" && /bin/bash "$f" turnoff'
+curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnoff
 ```
 
-다운로드가 성공한 경우에만 실행하며, 실행이 끝나면 임시 스크립트는 삭제합니다. 최초 설정 백업은 해당 Mac에 유지됩니다. 실행할 코드는 [스크립트 원본](./TurnOff-Office-Update.command)에서 확인할 수 있습니다.
+다운로드가 성공한 경우에만 실행합니다. 스크립트 파일은 현재 폴더에 남으므로 나중에 `status` 또는 `restore`로 다시 실행할 수 있습니다. 최초 설정 백업은 해당 Mac에 유지됩니다. 실행할 코드는 [스크립트 원본](./TurnOff-Office-Update.command)에서 확인할 수 있습니다.
 
 ### 파일을 받아 직접 실행
 
