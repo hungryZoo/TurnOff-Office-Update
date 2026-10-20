@@ -1,8 +1,8 @@
 <h1 align="center">TurnOff-Office-Update</h1>
 
-<p align="center">
-  <code>curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command &amp;&amp; bash TurnOff-Office-Update.command turnoff</code>
-</p>
+```bash
+curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnoff
+```
 
 ## 개요
 
