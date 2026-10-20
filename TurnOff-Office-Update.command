@@ -12,9 +12,11 @@ AGENT='com.microsoft.update.agent'
 HELPER='com.microsoft.autoupdate.helper'
 AGENT_PLIST="/Library/LaunchAgents/$AGENT.plist"
 HELPER_PLIST="/Library/LaunchDaemons/$HELPER.plist"
+# Compatibility with the original manual banner workaround.
 BANNER_BACKUP='/Users/Shared/com.microsoft.update.agent.plist.bak'
 STATE_ROOT='/Library/Application Support/TurnOff-Office-Update'
 STATE="$STATE_ROOT/active"
+AGENT_BACKUP="$STATE_ROOT/com.microsoft.update.agent.plist"
 
 say() { printf '%s\n' "$*"; }
 die() { say "오류: $*" >&2; exit 1; }
@@ -23,11 +25,11 @@ case "$ACTION" in
     turnoff|turnon|restore|status|banner-status|dry-run) ;;
     -h|--help|help)
         say '사용법: bash TurnOff-Office-Update.command [turnoff|turnon|restore|status|banner-status|dry-run]'
-        say 'turnoff: 자동 업데이트 끄기 (기본값, 최초 설정 백업)'
-        say 'turnon: 자동 다운로드 및 설치 켜기 (최초 설정 백업)'
+        say 'turnoff: 자동 업데이트 끄기 및 배너 우회용 plist 자동 이동 (기본값, 최초 설정 백업)'
+        say 'turnon: 옮긴 plist 자동 복원 및 자동 다운로드·설치 켜기 (최초 설정 백업)'
         say 'restore: 이 스크립트 최초 실행 전의 설정으로 복원'
         say 'status: 현재 설정과 서비스 상태 확인 (읽기 전용)'
-        say 'banner-status: 업데이트 오류 배너 진단 및 수동 이동·복원 명령 표시 (읽기 전용, Swift 필요)'
+        say 'banner-status: 업데이트 오류 배너 진단 (읽기 전용, Swift 필요)'
         say 'dry-run: turnoff 작업 표시 (변경 없음)'
         exit 0 ;;
     *) die "알 수 없는 동작: $ACTION. --help를 참고하세요." ;;
@@ -74,6 +76,7 @@ pref_command() {
 }
 
 loaded() { /bin/launchctl print "$1" >/dev/null 2>&1; }
+exists() { [ -e "$1" ] || [ -L "$1" ]; }
 
 # An explicit launchctl override wins; otherwise use the service plist default.
 disabled() {
@@ -83,26 +86,27 @@ disabled() {
         disabled) return 0 ;;
         enabled) return 1 ;;
     esac
+    if [ "$label" = "$AGENT" ] && ! exists "$plist"; then
+        if exists "$AGENT_BACKUP"; then plist="$AGENT_BACKUP"
+        elif exists "$BANNER_BACKUP"; then plist="$BANNER_BACKUP"; fi
+    fi
     value="$(/usr/bin/plutil -extract Disabled raw -o - "$plist" 2>/dev/null || true)"
     [ "$value" = true ]
 }
 
-banner_restore_command() {
-    printf 'sudo /bin/mv -n "%s" "%s"\n' "$BANNER_BACKUP" "$AGENT_PLIST"
+banner_files_status() {
+    local path
+    for path in "$AGENT_PLIST" "$AGENT_BACKUP" "$BANNER_BACKUP"; do
+        if [ "$path" = "$AGENT_BACKUP" ] && [ -d "$STATE_ROOT" ] && [ ! -x "$STATE_ROOT" ]; then
+            say "관리자 전용 백업 (조회 권한 없음): $path"
+        elif exists "$path"; then say "파일 있음: $path"
+        else say "파일 없음: $path"; fi
+    done
 }
 
 banner_status() {
     local code
-    if [ -e "$AGENT_PLIST" ] || [ -L "$AGENT_PLIST" ]; then
-        say "에이전트 파일: 있음 ($AGENT_PLIST)"
-    else
-        say "에이전트 파일: 없음 ($AGENT_PLIST)"
-    fi
-    if [ -e "$BANNER_BACKUP" ] || [ -L "$BANNER_BACKUP" ]; then
-        say "배너 우회용 백업: 있음 ($BANNER_BACKUP)"
-    else
-        say "배너 우회용 백업: 없음 ($BANNER_BACKUP)"
-    fi
+    banner_files_status
     /usr/bin/xcode-select -p >/dev/null 2>&1 &&
         /usr/bin/xcrun --find swift >/dev/null 2>&1 ||
         die 'SMAppService 진단에는 Swift가 필요합니다. Xcode 또는 Command Line Tools가 설치된 Mac에서 실행하세요.'
@@ -125,34 +129,113 @@ SWIFT
         3) say 'SMAppService: 3 (notFound)' ;;
         *) die "알 수 없는 SMAppService 상태: $code" ;;
     esac
-    if [ ! -e "$AGENT_PLIST" ] && [ ! -L "$AGENT_PLIST" ] && [ -f "$BANNER_BACKUP" ]; then
-        say '원본 경로가 비어 있고 백업이 있습니다. Office를 완전히 종료한 뒤 다시 열어 배너를 확인하세요.'
-        say '되돌리기 (turnon 또는 restore 실행 전에도 먼저 수행):'
-        banner_restore_command
+    if ! exists "$AGENT_PLIST" && { exists "$AGENT_BACKUP" || exists "$BANNER_BACKUP"; }; then
+        say '에이전트 plist는 백업 위치에 있습니다. Office를 완전히 종료한 뒤 다시 열어 배너를 확인하세요.'
+        say 'turnon은 파일을 자동 복원하고 업데이트를 켭니다. restore도 파일을 자동 복원합니다.'
     elif [ "$code" = 2 ] && [ -f "$AGENT_PLIST" ] && [ ! -L "$AGENT_PLIST" ]; then
-        if [ -e "$BANNER_BACKUP" ] || [ -L "$BANNER_BACKUP" ]; then
-            say '원본과 백업이 함께 있습니다. 기존 백업을 확인하기 전에는 이동하거나 덮어쓰지 마세요.'
-        else
-            say '배너 우회 적용 조건에 해당합니다. turnoff로 업데이트를 끈 상태에서 Office를 완전히 종료하세요.'
-            say '직접 실행할 이동 명령 (기존 파일을 덮어쓰지 않음):'
-            printf 'sudo /bin/mv -n "%s" "%s"\n' "$AGENT_PLIST" "$BANNER_BACKUP"
-            say '이동 후 banner-status로 파일 위치를 다시 확인하고 Office를 다시 열어 배너를 확인하세요.'
-            say '되돌리기:'
-            banner_restore_command
-        fi
+        say '사용자 승인이 필요한 상태입니다. turnoff를 실행하면 업데이트를 차단하고 plist를 자동 이동합니다.'
     else
-        say '상태 2인 일반 에이전트 파일이 확인되지 않았으므로 이동 명령을 제안하지 않습니다.'
+        say 'turnoff는 업데이트 차단과 plist 이동을 함께 처리합니다. turnon은 자동 복원 후 업데이트를 켭니다.'
     fi
     say '이 진단은 파일, 업데이트 설정, 백그라운드 허용 상태를 변경하지 않았습니다.'
 }
 
 require_agent_plist() {
-    if [ ! -f "$AGENT_PLIST" ]; then
-        if [ -e "$BANNER_BACKUP" ] || [ -L "$BANNER_BACKUP" ]; then
-            say '배너 우회용 파일을 먼저 원래 위치로 되돌린 뒤 다시 실행하세요:' >&2
-            banner_restore_command >&2
+    [ -f "$AGENT_PLIST" ] || die "MAU 서비스 파일이 없습니다. Office 또는 Microsoft AutoUpdate 설치를 확인하세요: $AGENT_PLIST"
+}
+
+# Shared legacy backups must not introduce a user-writable launch agent into /Library.
+check_root_owned() {
+    local path="$1" mode
+    [ ! -L "$path" ] || die "심볼릭 링크는 처리하지 않습니다: $path"
+    [ "$(/usr/bin/stat -f %u "$path")" = 0 ] || die "관리자 소유 파일/폴더가 아닙니다: $path"
+    mode="$(/usr/bin/stat -f %Lp "$path")"
+    [ "$((8#$mode & 022))" -eq 0 ] || die "일반 사용자가 변경할 수 있는 파일/폴더입니다: $path"
+}
+
+check_backup_root() {
+    if exists "$STATE_ROOT"; then
+        [ -d "$STATE_ROOT" ] || die "백업 경로가 폴더가 아닙니다: $STATE_ROOT"
+        check_root_owned "$STATE_ROOT"
+    fi
+}
+
+ensure_backup_root() {
+    check_backup_root
+    umask 077
+    /bin/mkdir -p "$STATE_ROOT"
+    /bin/chmod 700 "$STATE_ROOT"
+}
+
+check_agent_file() {
+    local path="$1"
+    [ -f "$path" ] || die "일반 plist 파일이 아닙니다: $path"
+    check_root_owned "$path"
+    /usr/bin/plutil -lint "$path" >/dev/null || die "plist 형식이 올바르지 않습니다: $path"
+    [ "$(/usr/bin/plutil -extract Label raw -o - "$path")" = "$AGENT" ] ||
+        die "Microsoft 업데이트 에이전트 파일이 아닙니다: $path"
+}
+
+check_agent_files() {
+    local path
+    check_backup_root
+    for path in "$AGENT_PLIST" "$AGENT_BACKUP" "$BANNER_BACKUP"; do
+        if exists "$path"; then check_agent_file "$path"; fi
+    done
+}
+
+agent_available() { exists "$AGENT_PLIST" || exists "$AGENT_BACKUP" || exists "$BANNER_BACKUP"; }
+
+move_agent_file() {
+    local source="$1" destination="$2"
+    check_agent_file "$source"
+    ! exists "$destination" || die "기존 파일을 덮어쓰지 않습니다: $destination"
+    /bin/mv -n "$source" "$destination"
+    ! exists "$source" && [ -f "$destination" ] || die "파일 이동을 확인할 수 없습니다: $source → $destination"
+}
+
+archive_path() {
+    printf '%s/agent-archived-%s-%s.plist\n' "$STATE_ROOT" "$(/bin/date +%Y%m%d-%H%M%S)" "$(/usr/bin/uuidgen)"
+}
+
+import_legacy_backup() {
+    local destination
+    if exists "$BANNER_BACKUP"; then
+        ensure_backup_root
+        destination="$AGENT_BACKUP"
+        if exists "$AGENT_BACKUP"; then destination="$(archive_path)"; fi
+        move_agent_file "$BANNER_BACKUP" "$destination"
+        say "기존 /Users/Shared 백업을 관리자 전용 폴더로 옮겼습니다: $destination"
+    fi
+}
+
+hide_agent_plist() {
+    import_legacy_backup
+    if exists "$AGENT_PLIST"; then
+        ensure_backup_root
+        if exists "$AGENT_BACKUP"; then
+            # A reinstall may have supplied a newer plist. Keep both versions.
+            move_agent_file "$AGENT_BACKUP" "$(archive_path)"
         fi
-        die "MAU 서비스 파일이 없습니다. Office 또는 Microsoft AutoUpdate 설치를 확인하세요: $AGENT_PLIST"
+        move_agent_file "$AGENT_PLIST" "$AGENT_BACKUP"
+        say "배너 우회용 plist 이동 완료: $AGENT_BACKUP"
+    elif exists "$AGENT_BACKUP"; then
+        say 'plist가 이미 백업 위치에 있습니다. 기존 파일을 유지합니다.'
+    else
+        say '이동할 에이전트 plist가 없습니다. 업데이트 차단 설정을 유지합니다.'
+    fi
+    ! exists "$AGENT_PLIST" || die '에이전트 plist가 원본 경로에 남아 있습니다.'
+}
+
+restore_agent_plist() {
+    import_legacy_backup
+    if exists "$AGENT_PLIST"; then
+        if exists "$AGENT_BACKUP"; then
+            say '현재 설치된 plist를 사용합니다. 기존 백업은 관리자 전용 폴더에 보관합니다.'
+        fi
+    elif exists "$AGENT_BACKUP"; then
+        move_agent_file "$AGENT_BACKUP" "$AGENT_PLIST"
+        say "에이전트 plist 자동 복원 완료: $AGENT_PLIST"
     fi
 }
 
@@ -176,6 +259,7 @@ status() {
         if loaded "$domain/$key"; then running=loaded; fi
         say "$domain/$key: $flag, $running"
     done
+    banner_files_status
 }
 
 if [ "$ACTION" = status ]; then status; exit 0; fi
@@ -184,6 +268,8 @@ if [ "$ACTION" = dry-run ]; then
     say "대상 사용자: $TARGET_USER (UID $TARGET_UID)"
     say '사용자 및 시스템 MAU 설정: HowToCheck=Manual, StartDaemonOnAppLaunch=false'
     say "서비스 차단 및 등록 해제: $GUI_DOMAIN/$AGENT, system/$HELPER"
+    say "배너 우회: $AGENT_PLIST → $AGENT_BACKUP (이미 이동했으면 유지)"
+    say "기존 수동 백업도 인식: $BANNER_BACKUP"
     say "최초 설정 백업: $STATE"
     say '문서, 계정, 키체인, 라이선스, VS Code 설정은 변경하지 않습니다.'
     say '변경 사항을 적용하지 않았습니다.'
@@ -222,14 +308,15 @@ snapshot_preferences() {
 }
 
 save_baseline() {
+    check_backup_root
+    [ ! -L "$STATE" ] || die '최초 설정 백업 경로가 심볼릭 링크입니다.'
     if [ -e "$STATE" ]; then
         [ -f "$STATE/ready" ] || die "불완전한 백업이 있습니다. 확인이 필요합니다: $STATE"
         [ "$(/bin/cat "$STATE/uid")" = "$TARGET_UID" ] || die '다른 사용자가 저장한 백업입니다. 최초 실행 계정에서 복원해 주세요.'
         say '이전 백업을 유지합니다. 최초 실행 전 설정을 덮어쓰지 않습니다.'
         return
     fi
-    [ ! -L "$STATE_ROOT" ] || die '백업 경로가 심볼릭 링크입니다.'
-    umask 077
+    ensure_backup_root
     /bin/mkdir -p "$STATE"
     /bin/chmod 700 "$STATE_ROOT" "$STATE"
     say "$TARGET_UID" > "$STATE/uid"
@@ -299,6 +386,7 @@ restore_service() {
 }
 
 if [ "$ACTION" = turnoff ]; then
+    check_agent_files
     save_baseline
     user_command /usr/bin/defaults write "$PREF_DOMAIN" HowToCheck -string Manual
     user_command /usr/bin/defaults write "$PREF_DOMAIN" StartDaemonOnAppLaunch -bool false
@@ -317,11 +405,16 @@ if [ "$ACTION" = turnoff ]; then
     if loaded "$GUI_DOMAIN/$AGENT" || loaded "system/$HELPER"; then
         die '업데이트 서비스의 실행 등록이 해제되지 않았습니다.'
     fi
-    say 'Office 백그라운드 자동 업데이트 차단을 적용하고 확인했습니다.'
+    hide_agent_plist
+    say 'Office 백그라운드 자동 업데이트 차단과 배너 우회 파일 처리를 완료했습니다.'
+    say '열려 있는 Office 앱은 완전히 종료한 뒤 다시 열어 주세요.'
 elif [ "$ACTION" = turnon ]; then
-    require_agent_plist
+    check_agent_files
+    agent_available || die 'MAU 에이전트 원본과 백업이 모두 없습니다. Office 또는 Microsoft AutoUpdate 설치를 확인하세요.'
     [ -f "$HELPER_PLIST" ] || die "MAU 서비스 파일이 없습니다. Office 또는 Microsoft AutoUpdate 설치를 확인하세요: $HELPER_PLIST"
     save_baseline
+    restore_agent_plist
+    require_agent_plist
     user_command /usr/bin/defaults write "$PREF_DOMAIN" HowToCheck -string AutomaticDownload
     user_command /usr/bin/defaults write "$PREF_DOMAIN" StartDaemonOnAppLaunch -bool true
     /usr/bin/defaults write "$SYSTEM_DOMAIN" HowToCheck -string AutomaticDownload
@@ -336,14 +429,12 @@ elif [ "$ACTION" = turnon ]; then
 else
     [ -f "$STATE/ready" ] || die '이 스크립트가 저장한 최초 설정 백업이 없습니다.'
     [ "$(/bin/cat "$STATE/uid")" = "$TARGET_UID" ] || die '최초 실행 사용자 계정에서 복원해 주세요.'
-    # The manually moved plist is separate from the original settings snapshot.
-    if [ ! -f "$AGENT_PLIST" ] && { [ -e "$BANNER_BACKUP" ] || [ -L "$BANNER_BACKUP" ]; }; then
-        require_agent_plist
-    fi
+    check_agent_files
     if [ "$(/bin/cat "$STATE/agent-state")" = enabled ] &&
         [ "$(/bin/cat "$STATE/agent-loaded")" = yes ]; then
-        require_agent_plist
+        agent_available || die '복원에 필요한 MAU 에이전트 원본과 백업이 모두 없습니다.'
     fi
+    restore_agent_plist
     restore_preferences user "$PREF_DOMAIN" "$USER_PREF"
     restore_preferences system "$SYSTEM_DOMAIN" "$SYSTEM_PREF"
     restore_service agent "$GUI_DOMAIN" "$AGENT" "$AGENT_PLIST"
