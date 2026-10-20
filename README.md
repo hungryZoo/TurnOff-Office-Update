@@ -1,6 +1,6 @@
 # TurnOff-Office-Update
 
-macOS에서 Microsoft Office의 백그라운드 자동 업데이트를 끄거나 켜고, 최초 실행 전 설정으로 복원하는 스크립트입니다. macOS 기본 도구만 사용하며 Python이나 Homebrew 설치가 필요하지 않습니다.
+macOS에서 Microsoft Office의 백그라운드 자동 업데이트를 끄거나 켜고, 최초 실행 전 설정으로 복원하는 스크립트입니다. 업데이트 설정 변경에는 macOS 기본 도구를 사용하며 Python이나 Homebrew 설치가 필요하지 않습니다. 선택 기능인 배너 진단에는 Swift가 필요합니다.
 
 ## 실행
 
@@ -32,6 +32,9 @@ bash TurnOff-Office-Update.command turnon
 # 상태 확인 — 읽기 전용
 bash TurnOff-Office-Update.command status
 
+# 업데이트 오류 배너 진단 — 읽기 전용, Swift 필요
+bash TurnOff-Office-Update.command banner-status
+
 # 끄기 작업 미리 보기 — 변경 없음
 bash TurnOff-Office-Update.command dry-run
 
@@ -40,6 +43,34 @@ bash TurnOff-Office-Update.command restore
 ```
 
 Finder에서 `TurnOff-Office-Update.command`를 더블 클릭하면 기본 동작인 `turnoff`를 실행합니다. 터미널에 관리자 암호를 입력할 때 글자가 표시되지 않는 것은 정상입니다.
+
+## Office 실행 시 업데이트 오류 배너가 뜨는 경우
+
+백그라운드 허용을 꺼 둔 상태에서 “Microsoft 자동 업데이트를 백그라운드에서 실행하도록 허용합니다” 배너가 뜨면 다음 진단을 실행하세요. 이 명령은 파일이나 설정을 변경하지 않습니다. macOS 13 이상과 Xcode 또는 Command Line Tools의 Swift가 필요하며, 일반적인 `turnoff`·`turnon`에는 Swift가 필요하지 않습니다.
+
+```bash
+bash TurnOff-Office-Update.command banner-status
+```
+
+이 명령은 `/Library/LaunchAgents/com.microsoft.update.agent.plist`의 존재 여부와 `SMAppService.statusForLegacyPlist(at:)` 상태를 조회합니다. `2 (requiresApproval)`는 사용자의 백그라운드 실행 승인이 필요한 상태입니다. 이 상태에서 plist를 LaunchAgents 밖으로 옮기는 방법을 배너 우회 후보로 안내합니다. Office 버전별 효과는 직접 확인해야 합니다.
+
+원본 파일이 있고 상태가 `2`이며 아래 백업 경로가 비어 있는 경우에만 진행하세요. 자동 업데이트는 `turnoff`로 끈 상태를 유지하고, Excel·Word·PowerPoint를 완전히 종료한 뒤 직접 실행하세요.
+
+```bash
+sudo /bin/mv -n "/Library/LaunchAgents/com.microsoft.update.agent.plist" "/Users/Shared/com.microsoft.update.agent.plist.bak"
+```
+
+`-n`은 기존 파일을 덮어쓰지 않습니다. 다시 `banner-status`를 실행해 **원본 없음 / 백업 있음**을 확인한 뒤 Office를 다시 열어 배너가 사라졌는지 확인하세요. 이동 후에도 상태 값은 직접 확인하며, 특정 값으로 바뀐다고 가정하지 않습니다. 파일 이동 명령은 자동 업데이트 설정이나 백그라운드 허용을 켜지 않습니다. 시스템 공용 파일이므로 다른 Mac 사용자에게도 영향을 줍니다.
+
+되돌리려면 Office를 완전히 종료하고 다음을 실행하세요.
+
+```bash
+sudo /bin/mv -n "/Users/Shared/com.microsoft.update.agent.plist.bak" "/Library/LaunchAgents/com.microsoft.update.agent.plist"
+```
+
+다시 `banner-status`로 **원본 있음 / 백업 없음**을 확인하세요. 원본과 백업이 모두 있다면 재설치 등으로 파일이 새로 생겼을 수 있으므로 덮어쓰지 말고 두 파일을 먼저 확인하세요.
+
+이 수동 백업은 아래의 최초 설정 백업과 별개입니다. `turnon`이나 `restore` 전에 파일을 원래 위치로 되돌려야 합니다. 스크립트는 백업을 자동으로 이동하거나 삭제하지 않으며, 원본이 없고 백업만 있으면 설정 변경 전에 중단하고 복원 명령을 안내합니다. Office 또는 MAU가 해당 plist를 다시 설치하면 배너가 재발할 수 있습니다.
 
 ## 적용 범위
 
@@ -88,9 +119,13 @@ Microsoft 문서상 `Manual`만 설정하면 MAU 자체의 업데이트 확인�
 
 ## 검증 범위
 
-macOS에서 셸 문법과 읽기 전용 `status`·`dry-run` 실행을 확인했습니다. 별도의 모의 환경에서 차단·켜기·복원, 반복 실행 시 최초 백업 유지, 변경한 키만 복원, 기존 서비스 상태 복원, 없는 설정 키 복원, 공백이 포함된 경로와 기존 정수형 설정 보존을 확인했습니다. 모든 macOS·MAU 버전에 대한 실기기 검증을 의미하지는 않습니다.
+macOS에서 셸 문법과 읽기 전용 `status`·`dry-run`·`banner-status` 실행을 확인했습니다. 별도의 모의 환경에서 차단·켜기·복원, 반복 실행 시 최초 백업 유지, 변경한 키만 복원, 기존 서비스 상태 복원, 없는 설정 키 복원, 공백이 포함된 경로와 기존 정수형 설정 보존을 확인했습니다. 배너 진단의 상태별 안내, Swift 조회 실패 처리, plist 이동 후 `turnon`·`restore`가 설정 변경 전에 중단하는 동작도 모의 환경에서 확인했습니다.
+
+실제 Mac 한 대에서 plist를 수동 이동한 뒤 원본 없음·백업 있음과 `2 (requiresApproval)` → `0 (notRegistered)` 전환을 확인했습니다. 자동 업데이트 서비스가 비활성화된 상태를 유지하면서 Office 업데이트 오류 배너가 나타나지 않는 것도 확인했습니다. 모든 macOS·Office·MAU 버전에서 같은 결과를 보장하지는 않습니다.
 
 ## 참고
 
 - [Microsoft AutoUpdate 공식 환경설정 문서](https://learn.microsoft.com/en-us/microsoft-365-apps/mac/mau-preferences)
+- [Apple SMAppService.statusForLegacyPlist(at:) 문서](https://developer.apple.com/documentation/servicemanagement/smappservice/statusforlegacyplist(at:))
+- [Apple requiresApproval 문서](https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum/requiresapproval)
 - 로컬 도움말: `launchctl help disable`, `launchctl help bootout`, `launchctl help enable`, `launchctl help bootstrap`
