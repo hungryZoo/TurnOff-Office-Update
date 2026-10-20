@@ -1,7 +1,10 @@
 <h1 align="center">TurnOff-Office-Update</h1>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnoff
+curl -fsSL \
+  https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command \
+  -o TurnOff-Office-Update.command && \
+  bash TurnOff-Office-Update.command turnoff
 ```
 
 ## 개요
@@ -19,7 +22,10 @@ Excel·Word·PowerPoint를 완전히 종료한 뒤 터미널에서 실행하세�
 자동 업데이트 차단과 배너 우회용 파일 이동을 한 번에 처리합니다. 실행 후 Office를 다시 열어 주세요.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnoff
+curl -fsSL \
+  https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command \
+  -o TurnOff-Office-Update.command && \
+  bash TurnOff-Office-Update.command turnoff
 ```
 
 ### 업데이트복원
@@ -27,7 +33,10 @@ curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/mai
 옮긴 파일을 원래 위치로 자동 복원하고, 자동 업데이트 확인·다운로드·설치를 다시 켭니다.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command -o TurnOff-Office-Update.command && bash TurnOff-Office-Update.command turnon
+curl -fsSL \
+  https://raw.githubusercontent.com/hungryZoo/TurnOff-Office-Update/main/TurnOff-Office-Update.command \
+  -o TurnOff-Office-Update.command && \
+  bash TurnOff-Office-Update.command turnon
 ```
 
 ## 원리
